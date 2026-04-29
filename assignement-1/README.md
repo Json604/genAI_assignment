@@ -10,9 +10,7 @@ A persona-based AI chatbot that lets you have real conversations with three figu
 
 ## Live demo
 
-🔗 **<add-your-vercel-url-here>**
-
-> Deploy on Vercel with your own `GEMINI_API_KEY` and paste the URL above. See [Deploying to Vercel](#deploying-to-vercel) below.
+🔗 **<https://gen-ai-assignment-phi.vercel.app/>**
 
 ## Screenshots
 
@@ -148,7 +146,7 @@ No build, output, or start command overrides are required — Vercel auto-detect
 - [x] Streaming responses
 - [x] Mobile-responsive
 - [x] Graceful API error handling
-- [ ] Deployed and live (paste URL above before submitting)
+- [x] Deployed and live → [gen-ai-assignment-phi.vercel.app](https://gen-ai-assignment-phi.vercel.app/)
 
 ## A note on the personas
 

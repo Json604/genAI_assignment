@@ -10,6 +10,6 @@ This repository contains my submissions for the GenAI assignment series. Each as
 
 | # | Assignment | Folder | Description |
 |---|---|---|---|
-| 1 | Persona-Based AI Chatbot | [`assignement-1/`](./assignement-1/) | A chatbot that lets users converse with three Scaler/InterviewBit founders (Anshuman Singh, Abhimanyu Saxena, Kshitij Mishra) via well-engineered persona system prompts. |
+| 1 | Persona-Based AI Chatbot | [`assignement-1/`](./assignement-1/) · [live](https://gen-ai-assignment-phi.vercel.app/) | A chatbot that lets users converse with three Scaler/InterviewBit founders (Anshuman Singh, Abhimanyu Saxena, Kshitij Mishra) via well-engineered persona system prompts. |
 
 For setup steps, deployed link, system prompts, and the reflection writeup, see the README inside each assignment folder.
