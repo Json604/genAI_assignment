@@ -14,7 +14,7 @@ import {
   Upload,
   User,
 } from "lucide-react";
-import { DragEvent, FormEvent, useMemo, useRef, useState } from "react";
+import { DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ChatMessage, UploadedDocument } from "@/lib/types";
 
@@ -59,7 +59,10 @@ export default function Page() {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [isChatAtBottom, setIsChatAtBottom] = useState(true);
+  const [showNewMessageBubble, setShowNewMessageBubble] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatScrollerRef = useRef<HTMLDivElement>(null);
 
   const busy = uploading || asking;
   const canAsk = selectedDocumentIds.length > 0 && !busy;
@@ -78,6 +81,19 @@ export default function Page() {
 
     return `${selectedDocuments.length} selected · ${chunkCount} chunks · ${characterCount.toLocaleString()} characters`;
   }, [selectedDocuments]);
+
+  useEffect(() => {
+    const scroller = chatScrollerRef.current;
+    if (!scroller) return;
+
+    if (isChatAtBottom) {
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+      setShowNewMessageBubble(false);
+      return;
+    }
+
+    if (messages.length) setShowNewMessageBubble(true);
+  }, [messages, isChatAtBottom]);
 
   function stageFiles(files: FileList | File[] | undefined) {
     const nextFiles = Array.from(files || []);
@@ -319,6 +335,26 @@ export default function Page() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void askQuestion();
+  }
+
+  function handleChatScroll() {
+    const scroller = chatScrollerRef.current;
+    if (!scroller) return;
+
+    const distanceFromBottom =
+      scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+    const atBottom = distanceFromBottom < 96;
+    setIsChatAtBottom(atBottom);
+    if (atBottom) setShowNewMessageBubble(false);
+  }
+
+  function scrollChatToBottom() {
+    const scroller = chatScrollerRef.current;
+    if (!scroller) return;
+
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+    setIsChatAtBottom(true);
+    setShowNewMessageBubble(false);
   }
 
   function openFilePicker() {
@@ -747,31 +783,47 @@ export default function Page() {
               {busy && <Loader2 className="animate-spin text-[#1a73e8]" size={20} />}
             </div>
 
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5">
-              {!messages.length ? (
-                <div className="grid h-full min-h-[360px] place-items-center text-center">
-                  <div className="max-w-md">
-                    <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-[#ecf4f1] text-[#1f8a70]">
-                      {uploading ? <ScanText size={24} /> : <Database size={24} />}
+            <div className="relative min-h-0 flex-1">
+              <div
+                ref={chatScrollerRef}
+                className="h-full space-y-4 overflow-y-auto px-4 py-5"
+                onScroll={handleChatScroll}
+              >
+                {!messages.length ? (
+                  <div className="grid h-full min-h-[360px] place-items-center text-center">
+                    <div className="max-w-md">
+                      <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-[#ecf4f1] text-[#1f8a70]">
+                        {uploading ? <ScanText size={24} /> : <Database size={24} />}
+                      </div>
+                      <h3 className="mt-4 text-lg font-semibold">
+                        {uploading
+                          ? "Preparing your document"
+                          : selectedDocumentIds.length
+                            ? "Sources ready for questions"
+                            : "Select a source to begin"}
+                      </h3>
+                      <p className="mt-2 text-sm text-[#6f6a60]">
+                        {uploading
+                          ? "The app is extracting text, creating chunks, embedding them, and storing them in Qdrant."
+                          : selectedDocumentIds.length
+                            ? "Ask a question below or use one of the prompts on the left."
+                            : "Choose at least one source from the left panel."}
+                      </p>
                     </div>
-                    <h3 className="mt-4 text-lg font-semibold">
-                      {uploading
-                        ? "Preparing your document"
-                        : selectedDocumentIds.length
-                          ? "Sources ready for questions"
-                          : "Select a source to begin"}
-                    </h3>
-                    <p className="mt-2 text-sm text-[#6f6a60]">
-                      {uploading
-                        ? "The app is extracting text, creating chunks, embedding them, and storing them in Qdrant."
-                        : selectedDocumentIds.length
-                          ? "Ask a question below or use one of the prompts on the left."
-                          : "Choose at least one source from the left panel."}
-                    </p>
                   </div>
-                </div>
-              ) : (
-                messages.map((message, index) => <Message key={index} message={message} />)
+                ) : (
+                  messages.map((message, index) => <Message key={index} message={message} />)
+                )}
+              </div>
+
+              {showNewMessageBubble && (
+                <button
+                  type="button"
+                  className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-[#0b57d0] px-4 py-2 text-sm font-medium text-white shadow-lg transition hover:bg-[#0842a0]"
+                  onClick={scrollChatToBottom}
+                >
+                  New message
+                </button>
               )}
             </div>
 
