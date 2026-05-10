@@ -1,15 +1,19 @@
 "use client";
 
 import {
+  AlertTriangle,
   Bot,
+  CheckCircle2,
+  Database,
   FileText,
   Loader2,
   MessageSquareText,
+  ScanText,
   Send,
   Upload,
   User,
 } from "lucide-react";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { DragEvent, FormEvent, useMemo, useRef, useState } from "react";
 
 import type { ChatMessage, UploadedDocument } from "@/lib/types";
 
@@ -26,12 +30,24 @@ type ChatStreamEvent =
   | { type: "done" }
   | { type: "error"; error: string };
 
+type UploadStage = "idle" | "reading" | "extracting" | "indexing" | "ready" | "error";
+
+const UPLOAD_STEPS: Array<{ stage: Exclude<UploadStage, "idle" | "ready" | "error">; label: string }> = [
+  { stage: "reading", label: "Reading file" },
+  { stage: "extracting", label: "Extracting text" },
+  { stage: "indexing", label: "Embedding and indexing" },
+];
+
 export default function Page() {
   const [document, setDocument] = useState<UploadedDocument | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadStage, setUploadStage] = useState<UploadStage>("idle");
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [asking, setAsking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,7 +68,17 @@ export default function Page() {
 
     setUploading(true);
     setError(null);
-    setStatus("Reading, chunking, embedding, and indexing the document...");
+    setUploadError(null);
+    setSelectedFileName(file.name);
+    setUploadStage("reading");
+    setStatus(null);
+
+    const extractionTimer = window.setTimeout(() => {
+      setUploadStage("extracting");
+    }, 900);
+    const indexingTimer = window.setTimeout(() => {
+      setUploadStage("indexing");
+    }, 2800);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -68,12 +94,16 @@ export default function Page() {
 
       setDocument(data);
       setMessages([]);
+      setUploadStage("ready");
       setStatus("Document indexed. Ask a question grounded in its content.");
     } catch (uploadError) {
       setDocument(null);
+      setUploadStage("error");
       setStatus(null);
-      setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
+      setUploadError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
     } finally {
+      window.clearTimeout(extractionTimer);
+      window.clearTimeout(indexingTimer);
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -196,6 +226,22 @@ export default function Page() {
     void askQuestion();
   }
 
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setDragActive(false);
+    void uploadDocument(event.dataTransfer.files?.[0]);
+  }
+
+  function getUploadStepState(stage: UploadStage) {
+    const activeIndex = UPLOAD_STEPS.findIndex((step) => step.stage === stage);
+
+    return UPLOAD_STEPS.map((step, index) => ({
+      ...step,
+      done: stage === "ready" || activeIndex > index,
+      active: activeIndex === index,
+    }));
+  }
+
   return (
     <main className="min-h-screen bg-[#f6f5f1] text-[#191816]">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
@@ -227,10 +273,30 @@ export default function Page() {
                 </div>
               </div>
 
-              <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-[#b9b3a6] bg-[#fbfaf7] px-4 py-8 text-center transition hover:border-[#1f8a70] hover:bg-[#f1f7f4]">
-                <FileText className="mb-3 text-[#736d62]" size={28} />
-                <span className="text-sm font-medium">Choose a document</span>
-                <span className="mt-1 text-xs text-[#777168]">The app indexes every new upload.</span>
+              <label
+                className={`mt-4 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-4 py-8 text-center transition ${
+                  dragActive
+                    ? "border-[#1f8a70] bg-[#ecf4f1]"
+                    : "border-[#b9b3a6] bg-[#fbfaf7] hover:border-[#1f8a70] hover:bg-[#f1f7f4]"
+                } ${uploading ? "cursor-wait opacity-80" : ""}`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDragActive(true);
+                }}
+                onDragLeave={() => setDragActive(false)}
+                onDrop={handleDrop}
+              >
+                {uploading ? (
+                  <Loader2 className="mb-3 animate-spin text-[#1f8a70]" size={28} />
+                ) : (
+                  <FileText className="mb-3 text-[#736d62]" size={28} />
+                )}
+                <span className="text-sm font-medium">
+                  {uploading ? "Processing document" : "Choose or drop a document"}
+                </span>
+                <span className="mt-1 max-w-[260px] truncate text-xs text-[#777168]">
+                  {selectedFileName || "PDF, TXT, and Markdown supported"}
+                </span>
                 <input
                   ref={fileInputRef}
                   className="sr-only"
@@ -240,18 +306,73 @@ export default function Page() {
                   onChange={(event) => void uploadDocument(event.target.files?.[0])}
                 />
               </label>
+
+              {(uploading || uploadStage === "ready" || uploadStage === "error") && (
+                <div className="mt-4 rounded-md border border-[#e2ded5] bg-[#fbfaf7] p-3">
+                  <div className="space-y-2">
+                    {getUploadStepState(uploadStage).map((step) => (
+                      <div key={step.stage} className="flex items-center gap-2 text-sm">
+                        <span
+                          className={`grid h-5 w-5 place-items-center rounded-full ${
+                            step.done
+                              ? "bg-[#1f8a70] text-white"
+                              : step.active
+                                ? "bg-[#ecf4f1] text-[#1f8a70]"
+                                : "bg-[#e8e4db] text-[#8b857b]"
+                          }`}
+                        >
+                          {step.done ? (
+                            <CheckCircle2 size={13} />
+                          ) : step.active ? (
+                            <Loader2 className="animate-spin" size={13} />
+                          ) : (
+                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          )}
+                        </span>
+                        <span
+                          className={
+                            step.done || step.active ? "text-[#2f2b26]" : "text-[#8a8479]"
+                          }
+                        >
+                          {step.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {uploadStage === "extracting" && (
+                    <p className="mt-3 text-xs leading-5 text-[#6f6a60]">
+                      Scanned PDFs can take longer because the app falls back to Gemini text
+                      extraction when no text layer is available.
+                    </p>
+                  )}
+
+                  {uploadError && (
+                    <div className="mt-3 flex gap-2 rounded-md border border-[#f3b7ae] bg-[#fff6f4] p-2 text-xs leading-5 text-[#b42318]">
+                      <AlertTriangle className="mt-0.5 shrink-0" size={14} />
+                      <span>{uploadError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="rounded-lg border border-[#d8d5cc] bg-white p-4 shadow-sm">
               <h2 className="text-base font-semibold">Active document</h2>
               {document ? (
                 <div className="mt-3 rounded-md bg-[#f7f6f2] p-3">
-                  <p className="break-words text-sm font-medium">{document.fileName}</p>
-                  <p className="mt-1 text-xs text-[#6f6a60]">{documentStats}</p>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 shrink-0 text-[#1f8a70]" size={16} />
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium">{document.fileName}</p>
+                      <p className="mt-1 text-xs text-[#6f6a60]">{documentStats}</p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-[#6f6a60]">
-                  Upload a document to create a private Qdrant index for this chat.
+                  Upload a document to create a Qdrant index for this chat. Scanned PDFs are
+                  handled with a Gemini extraction fallback.
                 </p>
               )}
             </div>
@@ -293,12 +414,21 @@ export default function Page() {
                 <div className="grid h-full min-h-[360px] place-items-center text-center">
                   <div className="max-w-md">
                     <div className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-[#ecf4f1] text-[#1f8a70]">
-                      <Bot size={24} />
+                      {uploading ? <ScanText size={24} /> : document ? <Database size={24} /> : <Bot size={24} />}
                     </div>
-                    <h3 className="mt-4 text-lg font-semibold">Upload, then ask from the source</h3>
+                    <h3 className="mt-4 text-lg font-semibold">
+                      {uploading
+                        ? "Preparing your document"
+                        : document
+                          ? "Document ready for questions"
+                          : "Upload, then ask from the source"}
+                    </h3>
                     <p className="mt-2 text-sm text-[#6f6a60]">
-                      The assistant will retrieve matching chunks from Qdrant and refuse questions that
-                      are not supported by the uploaded document.
+                      {uploading
+                        ? "The app is extracting text, creating chunks, embedding them, and storing them in Qdrant."
+                        : document
+                          ? "Ask a question below or use one of the prompts on the left."
+                          : "The assistant will retrieve matching chunks from Qdrant and refuse questions that are not supported by the uploaded document."}
                     </p>
                   </div>
                 </div>
