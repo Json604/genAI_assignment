@@ -32,6 +32,11 @@ type ChatStreamEvent =
   | { type: "error"; error: string };
 
 type UploadStage = "idle" | "reading" | "extracting" | "indexing" | "ready" | "error";
+type FileAnalysisState = {
+  error?: string;
+  file: File;
+  stage: UploadStage;
+};
 
 const UPLOAD_STEPS: Array<{ stage: Exclude<UploadStage, "idle" | "ready" | "error">; label: string }> = [
   { stage: "reading", label: "Reading file" },
@@ -50,6 +55,7 @@ export default function Page() {
   const [uploadStage, setUploadStage] = useState<UploadStage>("idle");
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [analysisStates, setAnalysisStates] = useState<Record<string, FileAnalysisState>>({});
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -104,19 +110,50 @@ export default function Page() {
     );
     setUploadStage("reading");
     setStatus(null);
-
-    const extractionTimer = window.setTimeout(() => {
-      setUploadStage("extracting");
-    }, 900);
-    const indexingTimer = window.setTimeout(() => {
-      setUploadStage("indexing");
-    }, 2800);
+    setAnalysisStates(
+      Object.fromEntries(
+        filesToUpload.map((file) => [
+          fileKey(file),
+          {
+            file,
+            stage: "reading" as UploadStage,
+          },
+        ])
+      )
+    );
 
     try {
       const uploadedDocuments: UploadedDocument[] = [];
 
       for (const file of filesToUpload) {
+        const key = fileKey(file);
         setSelectedFileName(file.name);
+        setUploadStage("reading");
+        setAnalysisStates((current) => ({
+          ...current,
+          [key]: { file, stage: "reading" },
+        }));
+
+        window.setTimeout(() => {
+          setUploadStage((stage) => (stage === "reading" ? "extracting" : stage));
+          setAnalysisStates((current) => {
+            const item = current[key];
+            if (!item || item.stage !== "reading") return current;
+            return { ...current, [key]: { ...item, stage: "extracting" } };
+          });
+        }, 700);
+
+        window.setTimeout(() => {
+          setUploadStage((stage) =>
+            stage === "reading" || stage === "extracting" ? "indexing" : stage
+          );
+          setAnalysisStates((current) => {
+            const item = current[key];
+            if (!item || item.stage === "ready" || item.stage === "error") return current;
+            return { ...current, [key]: { ...item, stage: "indexing" } };
+          });
+        }, 1800);
+
         const formData = new FormData();
         formData.append("file", file);
 
@@ -126,8 +163,20 @@ export default function Page() {
         });
         const data = await response.json();
 
-        if (!response.ok) throw new Error(data.error || `Upload failed for ${file.name}.`);
+        if (!response.ok) {
+          const message = data.error || `Upload failed for ${file.name}.`;
+          setAnalysisStates((current) => ({
+            ...current,
+            [key]: { file, stage: "error", error: message },
+          }));
+          throw new Error(message);
+        }
+
         uploadedDocuments.push(data);
+        setAnalysisStates((current) => ({
+          ...current,
+          [key]: { file, stage: "ready" },
+        }));
       }
 
       setDocuments((current) => [...current, ...uploadedDocuments]);
@@ -147,8 +196,6 @@ export default function Page() {
       setStatus(null);
       setUploadError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
     } finally {
-      window.clearTimeout(extractionTimer);
-      window.clearTimeout(indexingTimer);
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -368,6 +415,59 @@ export default function Page() {
             ))}
           </div>
         </div>
+      ) : uploading && Object.keys(analysisStates).length ? (
+        <div className="mt-6 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-base font-semibold text-[#202124]">Analyzing documents</p>
+              <p className="mt-1 text-xs text-[#5f6368]">
+                Each source is extracted, chunked, embedded, and indexed separately.
+              </p>
+            </div>
+            <Loader2 className="mt-1 shrink-0 animate-spin text-[#1a73e8]" size={18} />
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {Object.values(analysisStates).map((item) => (
+              <div key={fileKey(item.file)} className="rounded-xl border border-[#e8eaed] bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[#202124]">{item.file.name}</p>
+                    <p className="mt-1 text-xs text-[#5f6368]">{formatBytes(item.file.size)}</p>
+                  </div>
+                  <StagePill stage={item.stage} />
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {getUploadStepState(item.stage).map((step) => (
+                    <div key={step.stage} className="flex items-center gap-2 text-xs">
+                      <span
+                        className={`grid h-5 w-5 place-items-center rounded-full ${
+                          step.done
+                            ? "bg-[#188038] text-white"
+                            : step.active
+                              ? "bg-[#e8f0fe] text-[#1a73e8]"
+                              : "bg-[#edf0f2] text-[#7b8085]"
+                        }`}
+                      >
+                        {step.done ? (
+                          <CheckCircle2 size={12} />
+                        ) : step.active ? (
+                          <Loader2 className="animate-spin" size={12} />
+                        ) : (
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        )}
+                      </span>
+                      <span className={step.done || step.active ? "text-[#202124]" : "text-[#6f7377]"}>
+                        {step.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {item.error && <p className="mt-3 text-xs text-[#b42318]">{item.error}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
       ) : (
         <div
           className={`mt-6 flex min-h-[260px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 text-center transition ${
@@ -414,7 +514,7 @@ export default function Page() {
         </div>
       )}
 
-      {(uploading || uploadStage === "ready" || uploadStage === "error") && (
+      {(!uploading && (uploadStage === "ready" || uploadStage === "error")) && (
         <div className="mt-5 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
           <div className="grid gap-3 sm:grid-cols-3">
             {getUploadStepState(uploadStage).map((step) => (
@@ -442,13 +542,6 @@ export default function Page() {
               </div>
             ))}
           </div>
-
-          {uploadStage === "extracting" && (
-            <p className="mt-4 text-sm leading-6 text-[#5f6368]">
-              Scanned PDFs can take longer. If no text layer is found, Gemini extracts the
-              readable text before indexing.
-            </p>
-          )}
 
           {uploadError && (
             <div className="mt-4 flex gap-2 rounded-xl border border-[#f3b7ae] bg-[#fff6f4] p-3 text-sm leading-6 text-[#b42318]">
@@ -502,8 +595,8 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fafd] text-[#202124]">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+    <main className="h-screen overflow-hidden bg-[#f8fafd] text-[#202124]">
+      <div className="mx-auto grid h-screen w-full max-w-7xl grid-rows-[56px_minmax(0,1fr)] px-4 py-4 sm:px-6 lg:px-8">
         <header className="flex h-14 items-center justify-between border-b border-[#dadce0]">
           <div className="flex items-center gap-3">
             <div className="grid h-8 w-8 place-items-center rounded-full bg-[#e8f0fe] text-[#1a73e8]">
@@ -517,8 +610,8 @@ export default function Page() {
           </div>
         </header>
 
-        <section className="grid flex-1 gap-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="flex flex-col gap-4">
+        <section className="grid min-h-0 gap-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
             <div className="rounded-2xl border border-[#dadce0] bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -643,7 +736,7 @@ export default function Page() {
             </div>
           </aside>
 
-          <section className="flex min-h-[620px] flex-col rounded-2xl border border-[#dadce0] bg-white shadow-sm">
+          <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#dadce0] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#e8eaed] px-4 py-3">
               <div className="flex items-center gap-3">
                 <div className="grid h-9 w-9 place-items-center rounded-full bg-[#fef7e0] text-[#b06000]">
@@ -657,7 +750,7 @@ export default function Page() {
               {busy && <Loader2 className="animate-spin text-[#1a73e8]" size={20} />}
             </div>
 
-            <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5">
               {!messages.length ? (
                 <div className="grid h-full min-h-[360px] place-items-center text-center">
                   <div className="max-w-md">
@@ -806,6 +899,30 @@ function FormattedMessage({ content }: { content: string }) {
 
   flushList();
   return <div className="space-y-1">{blocks}</div>;
+}
+
+function StagePill({ stage }: { stage: UploadStage }) {
+  const labelByStage: Record<UploadStage, string> = {
+    idle: "Queued",
+    reading: "Reading",
+    extracting: "Extracting",
+    indexing: "Indexing",
+    ready: "Ready",
+    error: "Failed",
+  };
+
+  const className =
+    stage === "ready"
+      ? "bg-[#e6f4ea] text-[#188038]"
+      : stage === "error"
+        ? "bg-[#fce8e6] text-[#b42318]"
+        : "bg-[#e8f0fe] text-[#1a73e8]";
+
+  return (
+    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${className}`}>
+      {labelByStage[stage]}
+    </span>
+  );
 }
 
 function formatInlineMarkdown(text: string) {
