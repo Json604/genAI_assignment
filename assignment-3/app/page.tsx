@@ -242,149 +242,177 @@ export default function Page() {
     }));
   }
 
-  return (
-    <main className="min-h-screen bg-[#f6f5f1] text-[#191816]">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-3 border-b border-[#d8d5cc] pb-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-[#6f6a60]">
-              Assignment 03 · Google NotebookLM RAG
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-normal text-[#191816]">
-              Document-grounded notebook chat
-            </h1>
+  const uploadPanel = (
+    <div className="rounded-2xl border border-[#dedbd2] bg-white p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold tracking-normal text-[#202124]">Add sources</h2>
+          <p className="mt-1 max-w-xl text-sm leading-6 text-[#5f6368]">
+            Sources let this notebook base its responses on the information that matters most
+            to you.
+          </p>
+        </div>
+        <div className="rounded-full bg-[#f1f3f4] px-3 py-1 text-xs font-medium text-[#5f6368]">
+          0 / 50
+        </div>
+      </div>
+
+      <label
+        className={`mt-6 flex min-h-[260px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 text-center transition ${
+          dragActive
+            ? "border-[#1a73e8] bg-[#f1f7ff]"
+            : "border-[#c7c9cc] bg-[#fafafa] hover:border-[#1a73e8] hover:bg-[#f8fbff]"
+        } ${uploading ? "cursor-wait opacity-90" : ""}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={handleDrop}
+      >
+        <span className="grid h-14 w-14 place-items-center rounded-full bg-[#e8f0fe] text-[#1a73e8]">
+          {uploading ? <Loader2 className="animate-spin" size={26} /> : <Upload size={26} />}
+        </span>
+        <span className="mt-5 text-base font-medium text-[#202124]">
+          {uploading ? "Uploading and processing source" : "Upload sources"}
+        </span>
+        <span className="mt-2 max-w-md text-sm leading-6 text-[#5f6368]">
+          {uploading
+            ? selectedFileName || "Preparing your document..."
+            : "Drag and drop or choose a PDF, TXT, or Markdown file to start your notebook."}
+        </span>
+        {!uploading && (
+          <span className="mt-5 rounded-full bg-[#0b57d0] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#0842a0]">
+            Choose file
+          </span>
+        )}
+        <input
+          ref={fileInputRef}
+          className="sr-only"
+          type="file"
+          accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+          disabled={uploading}
+          onChange={(event) => void uploadDocument(event.target.files?.[0])}
+        />
+      </label>
+
+      {(uploading || uploadStage === "ready" || uploadStage === "error") && (
+        <div className="mt-5 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {getUploadStepState(uploadStage).map((step) => (
+              <div key={step.stage} className="flex items-center gap-2 text-sm">
+                <span
+                  className={`grid h-6 w-6 place-items-center rounded-full ${
+                    step.done
+                      ? "bg-[#188038] text-white"
+                      : step.active
+                        ? "bg-[#e8f0fe] text-[#1a73e8]"
+                        : "bg-[#edf0f2] text-[#7b8085]"
+                  }`}
+                >
+                  {step.done ? (
+                    <CheckCircle2 size={14} />
+                  ) : step.active ? (
+                    <Loader2 className="animate-spin" size={14} />
+                  ) : (
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                  )}
+                </span>
+                <span className={step.done || step.active ? "text-[#202124]" : "text-[#6f7377]"}>
+                  {step.label}
+                </span>
+              </div>
+            ))}
           </div>
-          <div className="flex items-center gap-2 text-sm text-[#5e5a52]">
-            <span className="h-2 w-2 rounded-full bg-[#1f8a70]" />
-            Gemini embeddings · Qdrant retrieval · grounded answers
+
+          {uploadStage === "extracting" && (
+            <p className="mt-4 text-sm leading-6 text-[#5f6368]">
+              Scanned PDFs can take longer. If no text layer is found, Gemini extracts the
+              readable text before indexing.
+            </p>
+          )}
+
+          {uploadError && (
+            <div className="mt-4 flex gap-2 rounded-xl border border-[#f3b7ae] bg-[#fff6f4] p-3 text-sm leading-6 text-[#b42318]">
+              <AlertTriangle className="mt-0.5 shrink-0" size={16} />
+              <span>{uploadError}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  if (!document) {
+    return (
+      <main className="min-h-screen bg-[#f8fafd] text-[#202124]">
+        <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
+          <div className="flex items-center gap-3">
+            <div className="grid h-9 w-9 place-items-center rounded-full bg-[#e8f0fe] text-[#1a73e8]">
+              <FileText size={19} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#202124]">Notebook RAG</p>
+              <p className="text-xs text-[#5f6368]">Assignment 03</p>
+            </div>
+          </div>
+          <div className="rounded-full border border-[#dadce0] bg-white px-3 py-1.5 text-xs text-[#5f6368]">
+            Gemini · Qdrant
           </div>
         </header>
 
-        <section className="grid flex-1 gap-4 py-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="mx-auto grid min-h-[calc(100vh-64px)] max-w-4xl place-items-center px-5 pb-12">
+          <div className="w-full">
+            {uploadPanel}
+            <p className="mx-auto mt-4 max-w-2xl text-center text-xs leading-5 text-[#6f7377]">
+              Uploading creates a private vector index for this notebook. Answers become available
+              after the source finishes processing.
+            </p>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#f8fafd] text-[#202124]">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+        <header className="flex h-14 items-center justify-between border-b border-[#dadce0]">
+          <div className="flex items-center gap-3">
+            <div className="grid h-8 w-8 place-items-center rounded-full bg-[#e8f0fe] text-[#1a73e8]">
+              <FileText size={17} />
+            </div>
+            <h1 className="text-base font-medium">Notebook RAG</h1>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-[#5f6368]">
+            <span className="h-2 w-2 rounded-full bg-[#188038]" />
+            Source grounded
+          </div>
+        </header>
+
+        <section className="grid flex-1 gap-4 py-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="flex flex-col gap-4">
-            <div className="rounded-lg border border-[#d8d5cc] bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-md bg-[#ecf4f1] text-[#1f8a70]">
-                  <Upload size={20} />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold">Upload source</h2>
-                  <p className="text-sm text-[#6f6a60]">PDF, TXT, or Markdown up to 8 MB</p>
+            <div className="rounded-2xl border border-[#dadce0] bg-white p-4 shadow-sm">
+              <h2 className="text-base font-semibold">Active document</h2>
+              <div className="mt-3 rounded-xl bg-[#f8fafd] p-3">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="mt-0.5 shrink-0 text-[#188038]" size={16} />
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-medium">{document.fileName}</p>
+                    <p className="mt-1 text-xs text-[#5f6368]">{documentStats}</p>
+                  </div>
                 </div>
               </div>
-
-              <label
-                className={`mt-4 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed px-4 py-8 text-center transition ${
-                  dragActive
-                    ? "border-[#1f8a70] bg-[#ecf4f1]"
-                    : "border-[#b9b3a6] bg-[#fbfaf7] hover:border-[#1f8a70] hover:bg-[#f1f7f4]"
-                } ${uploading ? "cursor-wait opacity-80" : ""}`}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setDragActive(true);
-                }}
-                onDragLeave={() => setDragActive(false)}
-                onDrop={handleDrop}
-              >
-                {uploading ? (
-                  <Loader2 className="mb-3 animate-spin text-[#1f8a70]" size={28} />
-                ) : (
-                  <FileText className="mb-3 text-[#736d62]" size={28} />
-                )}
-                <span className="text-sm font-medium">
-                  {uploading ? "Processing document" : "Choose or drop a document"}
-                </span>
-                <span className="mt-1 max-w-[260px] truncate text-xs text-[#777168]">
-                  {selectedFileName || "PDF, TXT, and Markdown supported"}
-                </span>
-                <input
-                  ref={fileInputRef}
-                  className="sr-only"
-                  type="file"
-                  accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
-                  disabled={uploading}
-                  onChange={(event) => void uploadDocument(event.target.files?.[0])}
-                />
-              </label>
-
-              {(uploading || uploadStage === "ready" || uploadStage === "error") && (
-                <div className="mt-4 rounded-md border border-[#e2ded5] bg-[#fbfaf7] p-3">
-                  <div className="space-y-2">
-                    {getUploadStepState(uploadStage).map((step) => (
-                      <div key={step.stage} className="flex items-center gap-2 text-sm">
-                        <span
-                          className={`grid h-5 w-5 place-items-center rounded-full ${
-                            step.done
-                              ? "bg-[#1f8a70] text-white"
-                              : step.active
-                                ? "bg-[#ecf4f1] text-[#1f8a70]"
-                                : "bg-[#e8e4db] text-[#8b857b]"
-                          }`}
-                        >
-                          {step.done ? (
-                            <CheckCircle2 size={13} />
-                          ) : step.active ? (
-                            <Loader2 className="animate-spin" size={13} />
-                          ) : (
-                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                          )}
-                        </span>
-                        <span
-                          className={
-                            step.done || step.active ? "text-[#2f2b26]" : "text-[#8a8479]"
-                          }
-                        >
-                          {step.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {uploadStage === "extracting" && (
-                    <p className="mt-3 text-xs leading-5 text-[#6f6a60]">
-                      Scanned PDFs can take longer because the app falls back to Gemini text
-                      extraction when no text layer is available.
-                    </p>
-                  )}
-
-                  {uploadError && (
-                    <div className="mt-3 flex gap-2 rounded-md border border-[#f3b7ae] bg-[#fff6f4] p-2 text-xs leading-5 text-[#b42318]">
-                      <AlertTriangle className="mt-0.5 shrink-0" size={14} />
-                      <span>{uploadError}</span>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
-            <div className="rounded-lg border border-[#d8d5cc] bg-white p-4 shadow-sm">
-              <h2 className="text-base font-semibold">Active document</h2>
-              {document ? (
-                <div className="mt-3 rounded-md bg-[#f7f6f2] p-3">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 shrink-0 text-[#1f8a70]" size={16} />
-                    <div className="min-w-0">
-                      <p className="break-words text-sm font-medium">{document.fileName}</p>
-                      <p className="mt-1 text-xs text-[#6f6a60]">{documentStats}</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-[#6f6a60]">
-                  Upload a document to create a Qdrant index for this chat. Scanned PDFs are
-                  handled with a Gemini extraction fallback.
-                </p>
-              )}
-            </div>
-
-            <div className="rounded-lg border border-[#d8d5cc] bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[#dadce0] bg-white p-4 shadow-sm">
               <h2 className="text-base font-semibold">Try asking</h2>
               <div className="mt-3 flex flex-col gap-2">
                 {SAMPLE_QUESTIONS.map((sample) => (
                   <button
                     key={sample}
                     type="button"
-                    className="rounded-md border border-[#dedbd2] px-3 py-2 text-left text-sm text-[#4d4942] transition hover:border-[#1f8a70] hover:bg-[#f1f7f4] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-xl border border-[#dadce0] px-3 py-2 text-left text-sm text-[#3c4043] transition hover:border-[#1a73e8] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={!canAsk}
                     onClick={() => void askQuestion(sample)}
                   >
@@ -395,18 +423,18 @@ export default function Page() {
             </div>
           </aside>
 
-          <section className="flex min-h-[620px] flex-col rounded-lg border border-[#d8d5cc] bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#e5e1d8] px-4 py-3">
+          <section className="flex min-h-[620px] flex-col rounded-2xl border border-[#dadce0] bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#e8eaed] px-4 py-3">
               <div className="flex items-center gap-3">
-                <div className="grid h-9 w-9 place-items-center rounded-md bg-[#f2eee3] text-[#7b5e24]">
+                <div className="grid h-9 w-9 place-items-center rounded-full bg-[#fef7e0] text-[#b06000]">
                   <MessageSquareText size={19} />
                 </div>
                 <div>
                   <h2 className="text-base font-semibold">Notebook chat</h2>
-                  <p className="text-xs text-[#6f6a60]">Answers are restricted to retrieved chunks.</p>
+                  <p className="text-xs text-[#5f6368]">Answers are restricted to retrieved chunks.</p>
                 </div>
               </div>
-              {busy && <Loader2 className="animate-spin text-[#1f8a70]" size={20} />}
+              {busy && <Loader2 className="animate-spin text-[#1a73e8]" size={20} />}
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5">
