@@ -415,7 +415,7 @@ export default function Page() {
             ))}
           </div>
         </div>
-      ) : uploading && Object.keys(analysisStates).length ? (
+      ) : uploading ? (
         <div className="mt-6 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -428,7 +428,10 @@ export default function Page() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {Object.values(analysisStates).map((item) => (
+            {(Object.values(analysisStates).length
+              ? Object.values(analysisStates)
+              : pendingFiles.map((file): FileAnalysisState => ({ file, stage: "reading" }))
+            ).map((item) => (
               <div key={fileKey(item.file)} className="rounded-xl border border-[#e8eaed] bg-white p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -489,28 +492,22 @@ export default function Page() {
           }}
         >
           <span className="grid h-14 w-14 place-items-center rounded-full bg-[#e8f0fe] text-[#1a73e8]">
-            {uploading ? <Loader2 className="animate-spin" size={26} /> : <Upload size={26} />}
+            <Upload size={26} />
           </span>
-          <span className="mt-5 text-base font-medium text-[#202124]">
-            {uploading ? "Analyzing sources" : "Upload sources"}
-          </span>
+          <span className="mt-5 text-base font-medium text-[#202124]">Upload sources</span>
           <span className="mt-2 max-w-md text-sm leading-6 text-[#5f6368]">
-            {uploading
-              ? selectedFileName || "Preparing your documents..."
-              : "Drag and drop or choose PDF, TXT, or Markdown files to start your notebook."}
+            Drag and drop or choose PDF, TXT, or Markdown files to start your notebook.
           </span>
-          {!uploading && (
-            <button
-              type="button"
-              className="mt-5 rounded-full bg-[#0b57d0] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#0842a0]"
-              onClick={(event) => {
-                event.stopPropagation();
-                openFilePicker();
-              }}
-            >
-              Choose files
-            </button>
-          )}
+          <button
+            type="button"
+            className="mt-5 rounded-full bg-[#0b57d0] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#0842a0]"
+            onClick={(event) => {
+              event.stopPropagation();
+              openFilePicker();
+            }}
+          >
+            Choose files
+          </button>
         </div>
       )}
 
