@@ -511,9 +511,11 @@ function Message({ message }: { message: ChatMessage }) {
           isUser ? "bg-[#191816] text-white" : "border border-[#dedbd2] bg-[#fbfaf7] text-[#26231f]"
         }`}
       >
-        <p className="whitespace-pre-wrap">
-          {hasAnswerText ? message.content : !isUser ? "Thinking..." : message.content}
-        </p>
+        {hasAnswerText ? (
+          <FormattedMessage content={message.content} />
+        ) : (
+          <p className="text-[#6f6a60]">Thinking...</p>
+        )}
         {!isUser && hasAnswerText && message.sources?.length ? (
           <div className="mt-4 border-t border-[#e2ded5] pt-3">
             <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f6a60]">
@@ -540,4 +542,56 @@ function Message({ message }: { message: ChatMessage }) {
       )}
     </article>
   );
+}
+
+function FormattedMessage({ content }: { content: string }) {
+  const lines = content.trim().split(/\n+/);
+  const blocks: JSX.Element[] = [];
+  let listItems: string[] = [];
+
+  const flushList = () => {
+    if (!listItems.length) return;
+
+    blocks.push(
+      <ul key={`list-${blocks.length}`} className="my-2 list-disc space-y-1 pl-5">
+        {listItems.map((item, index) => (
+          <li key={index}>{formatInlineMarkdown(item)}</li>
+        ))}
+      </ul>
+    );
+    listItems = [];
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    const bulletMatch = trimmed.match(/^[-*]\s+(.*)$/);
+    if (bulletMatch) {
+      listItems.push(bulletMatch[1]);
+      return;
+    }
+
+    flushList();
+    blocks.push(
+      <p key={`p-${index}`} className="my-2">
+        {formatInlineMarkdown(trimmed)}
+      </p>
+    );
+  });
+
+  flushList();
+  return <div className="space-y-1">{blocks}</div>;
+}
+
+function formatInlineMarkdown(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+
+    return part;
+  });
 }
