@@ -320,68 +320,31 @@ export default function Page() {
         </div>
       </div>
 
-      <div
-        className={`mt-6 flex min-h-[260px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 text-center transition ${
-          dragActive
-            ? "border-[#1a73e8] bg-[#f1f7ff]"
-            : "border-[#c7c9cc] bg-[#fafafa] hover:border-[#1a73e8] hover:bg-[#f8fbff]"
-        } ${uploading ? "cursor-wait opacity-90" : ""}`}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragActive(true);
-        }}
-        onDragLeave={() => setDragActive(false)}
-        onDrop={handleDrop}
-        onClick={openFilePicker}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") openFilePicker();
-        }}
-      >
-        <span className="grid h-14 w-14 place-items-center rounded-full bg-[#e8f0fe] text-[#1a73e8]">
-          {uploading ? <Loader2 className="animate-spin" size={26} /> : <Upload size={26} />}
-        </span>
-        <span className="mt-5 text-base font-medium text-[#202124]">
-          {uploading ? "Uploading and processing source" : "Upload sources"}
-        </span>
-        <span className="mt-2 max-w-md text-sm leading-6 text-[#5f6368]">
-          {uploading
-            ? selectedFileName || "Preparing your document..."
-            : pendingFiles.length
-              ? `${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"} selected. Add more files or start analysis.`
-              : "Drag and drop or choose PDF, TXT, or Markdown files to start your notebook."}
-        </span>
-        {!uploading && (
-          <button
-            type="button"
-            className="mt-5 rounded-full bg-[#0b57d0] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#0842a0]"
-            onClick={(event) => {
-              event.stopPropagation();
-              openFilePicker();
-            }}
-          >
-            Choose files
-          </button>
-        )}
-      </div>
-
-      {pendingFiles.length > 0 && !uploading && (
-        <div className="mt-5 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
-          <div className="flex items-center justify-between gap-3">
+      {pendingFiles.length > 0 && !uploading ? (
+        <div className="mt-6 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-[#202124]">Selected sources</p>
+              <p className="text-base font-semibold text-[#202124]">Uploaded documents</p>
               <p className="mt-1 text-xs text-[#5f6368]">
-                Review the files, then start analysis when ready.
+                These files are queued only. Analysis starts after you click the button.
               </p>
             </div>
-            <button
-              type="button"
-              className="rounded-full bg-[#0b57d0] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#0842a0]"
-              onClick={() => void uploadDocuments()}
-            >
-              Start analysis
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="rounded-full border border-[#dadce0] bg-white px-4 py-2 text-sm font-medium text-[#1a73e8] transition hover:bg-[#f8fbff]"
+                onClick={openFilePicker}
+              >
+                Add more
+              </button>
+              <button
+                type="button"
+                className="rounded-full bg-[#0b57d0] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#0842a0]"
+                onClick={() => void uploadDocuments()}
+              >
+                Start analysis
+              </button>
+            </div>
           </div>
 
           <div className="mt-3 space-y-2">
@@ -404,6 +367,50 @@ export default function Page() {
               </div>
             ))}
           </div>
+        </div>
+      ) : (
+        <div
+          className={`mt-6 flex min-h-[260px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 text-center transition ${
+            dragActive
+              ? "border-[#1a73e8] bg-[#f1f7ff]"
+              : "border-[#c7c9cc] bg-[#fafafa] hover:border-[#1a73e8] hover:bg-[#f8fbff]"
+          } ${uploading ? "cursor-wait opacity-90" : ""}`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragActive(true);
+          }}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={handleDrop}
+          onClick={openFilePicker}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") openFilePicker();
+          }}
+        >
+          <span className="grid h-14 w-14 place-items-center rounded-full bg-[#e8f0fe] text-[#1a73e8]">
+            {uploading ? <Loader2 className="animate-spin" size={26} /> : <Upload size={26} />}
+          </span>
+          <span className="mt-5 text-base font-medium text-[#202124]">
+            {uploading ? "Analyzing sources" : "Upload sources"}
+          </span>
+          <span className="mt-2 max-w-md text-sm leading-6 text-[#5f6368]">
+            {uploading
+              ? selectedFileName || "Preparing your documents..."
+              : "Drag and drop or choose PDF, TXT, or Markdown files to start your notebook."}
+          </span>
+          {!uploading && (
+            <button
+              type="button"
+              className="mt-5 rounded-full bg-[#0b57d0] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#0842a0]"
+              onClick={(event) => {
+                event.stopPropagation();
+                openFilePicker();
+              }}
+            >
+              Choose files
+            </button>
+          )}
         </div>
       )}
 
