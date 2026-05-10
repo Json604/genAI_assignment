@@ -49,6 +49,7 @@ export default function Page() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadStage, setUploadStage] = useState<UploadStage>("idle");
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -72,8 +73,27 @@ export default function Page() {
     return `${selectedDocuments.length} selected · ${chunkCount} chunks · ${characterCount.toLocaleString()} characters`;
   }, [selectedDocuments]);
 
-  async function uploadDocuments(files: FileList | File[] | undefined) {
-    const filesToUpload = Array.from(files || []);
+  function stageFiles(files: FileList | File[] | undefined) {
+    const nextFiles = Array.from(files || []);
+    if (!nextFiles.length || uploading) return;
+
+    setUploadError(null);
+    setUploadStage("idle");
+    setPendingFiles((current) => {
+      const existingKeys = new Set(current.map(fileKey));
+      const newUniqueFiles = nextFiles.filter((file) => !existingKeys.has(fileKey(file)));
+      return [...current, ...newUniqueFiles];
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removePendingFile(file: File) {
+    setPendingFiles((current) => current.filter((item) => fileKey(item) !== fileKey(file)));
+  }
+
+  async function uploadDocuments() {
+    const filesToUpload = pendingFiles;
     if (!filesToUpload.length || uploading) return;
 
     setUploading(true);
@@ -121,6 +141,7 @@ export default function Page() {
           ? "Source indexed. Ask a question grounded in its content."
           : `${uploadedDocuments.length} sources indexed. Ask across the selected sources.`
       );
+      setPendingFiles([]);
     } catch (uploadError) {
       setUploadStage("error");
       setStatus(null);
@@ -261,7 +282,7 @@ export default function Page() {
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragActive(false);
-    void uploadDocuments(event.dataTransfer.files);
+    stageFiles(event.dataTransfer.files);
   }
 
   function toggleDocument(documentId: string) {
@@ -295,7 +316,7 @@ export default function Page() {
           </p>
         </div>
         <div className="rounded-full bg-[#f1f3f4] px-3 py-1 text-xs font-medium text-[#5f6368]">
-          {documents.length} / 50
+          {documents.length + pendingFiles.length} / 50
         </div>
       </div>
 
@@ -327,7 +348,9 @@ export default function Page() {
         <span className="mt-2 max-w-md text-sm leading-6 text-[#5f6368]">
           {uploading
             ? selectedFileName || "Preparing your document..."
-            : "Drag and drop or choose PDF, TXT, or Markdown files to start your notebook."}
+            : pendingFiles.length
+              ? `${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"} selected. Add more files or start analysis.`
+              : "Drag and drop or choose PDF, TXT, or Markdown files to start your notebook."}
         </span>
         {!uploading && (
           <button
@@ -342,6 +365,47 @@ export default function Page() {
           </button>
         )}
       </div>
+
+      {pendingFiles.length > 0 && !uploading && (
+        <div className="mt-5 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-[#202124]">Selected sources</p>
+              <p className="mt-1 text-xs text-[#5f6368]">
+                Review the files, then start analysis when ready.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="rounded-full bg-[#0b57d0] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#0842a0]"
+              onClick={() => void uploadDocuments()}
+            >
+              Start analysis
+            </button>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {pendingFiles.map((file) => (
+              <div
+                key={fileKey(file)}
+                className="flex items-center justify-between gap-3 rounded-xl border border-[#e8eaed] bg-white px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-[#202124]">{file.name}</p>
+                  <p className="text-xs text-[#5f6368]">{formatBytes(file.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-full px-2 py-1 text-xs text-[#5f6368] transition hover:bg-[#f1f3f4]"
+                  onClick={() => removePendingFile(file)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {(uploading || uploadStage === "ready" || uploadStage === "error") && (
         <div className="mt-5 rounded-2xl border border-[#e3e3e3] bg-[#fafafa] p-4">
@@ -417,7 +481,7 @@ export default function Page() {
               accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
               disabled={uploading}
               multiple
-              onChange={(event) => void uploadDocuments(event.target.files || undefined)}
+              onChange={(event) => stageFiles(event.target.files || undefined)}
             />
             {uploadPanel}
             <p className="mx-auto mt-4 max-w-2xl text-center text-xs leading-5 text-[#6f7377]">
@@ -472,8 +536,50 @@ export default function Page() {
                 accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
                 disabled={uploading}
                 multiple
-                onChange={(event) => void uploadDocuments(event.target.files || undefined)}
+                onChange={(event) => stageFiles(event.target.files || undefined)}
               />
+
+              {pendingFiles.length > 0 && !uploading && (
+                <div className="mt-3 rounded-xl border border-[#dbe6ff] bg-[#f8fbff] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-[#202124]">
+                        {pendingFiles.length} pending source{pendingFiles.length === 1 ? "" : "s"}
+                      </p>
+                      <p className="mt-1 text-xs text-[#5f6368]">
+                        Start analysis to add them to this notebook.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-full bg-[#0b57d0] px-3 py-1.5 text-xs font-medium text-white transition hover:bg-[#0842a0]"
+                      onClick={() => void uploadDocuments()}
+                    >
+                      Start
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {pendingFiles.map((file) => (
+                      <div
+                        key={fileKey(file)}
+                        className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium text-[#202124]">{file.name}</p>
+                          <p className="text-[11px] text-[#5f6368]">{formatBytes(file.size)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="rounded-full px-2 py-1 text-[11px] text-[#5f6368] transition hover:bg-[#f1f3f4]"
+                          onClick={() => removePendingFile(file)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-3 space-y-2">
                 {documents.map((document) => {
@@ -705,4 +811,14 @@ function formatInlineMarkdown(text: string) {
 
     return part;
   });
+}
+
+function fileKey(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
