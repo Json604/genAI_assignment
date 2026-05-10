@@ -497,6 +497,7 @@ export default function Page() {
 
 function Message({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
+  const hasAnswerText = message.content.trim().length > 0;
 
   return (
     <article className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
@@ -510,8 +511,10 @@ function Message({ message }: { message: ChatMessage }) {
           isUser ? "bg-[#191816] text-white" : "border border-[#dedbd2] bg-[#fbfaf7] text-[#26231f]"
         }`}
       >
-        <p className="whitespace-pre-wrap">{message.content}</p>
-        {!isUser && message.sources?.length ? (
+        <p className="whitespace-pre-wrap">
+          {hasAnswerText ? message.content : !isUser ? "Thinking..." : message.content}
+        </p>
+        {!isUser && hasAnswerText && message.sources?.length ? (
           <div className="mt-4 border-t border-[#e2ded5] pt-3">
             <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6f6a60]">
               Retrieved sources
