@@ -1,6 +1,7 @@
 import pdf from "pdf-parse";
 
 import { normalizeWhitespace } from "@/lib/chunking";
+import { extractPdfTextWithGemini } from "@/lib/gemini";
 
 export type ParsedDocument = {
   fileName: string;
@@ -21,7 +22,22 @@ export async function parseUploadedFile(file: File): Promise<ParsedDocument> {
   if (file.type === "application/pdf" || extension === "pdf") {
     const parsed = await pdf(buffer);
     const text = normalizeWhitespace(parsed.text);
-    if (!text) throw new Error("No readable text was found in this PDF.");
+    if (!text) {
+      const extractedText = await extractPdfTextWithGemini(buffer, fileName);
+      const normalizedExtractedText = normalizeWhitespace(extractedText);
+
+      if (!normalizedExtractedText) {
+        throw new Error(
+          "No readable text was found in this PDF, and Gemini could not extract text from it."
+        );
+      }
+
+      return {
+        fileName,
+        pages: splitGeminiExtractedPages(extractedText),
+        characterCount: normalizedExtractedText.length,
+      };
+    }
 
     return {
       fileName,
@@ -42,6 +58,26 @@ export async function parseUploadedFile(file: File): Promise<ParsedDocument> {
   }
 
   throw new Error("Unsupported file type. Upload a PDF, TXT, or Markdown file.");
+}
+
+function splitGeminiExtractedPages(rawText: string) {
+  const pagePattern = /\[\[PAGE\s+(\d+)\]\]/gi;
+  const matches = Array.from(rawText.matchAll(pagePattern));
+
+  if (!matches.length) {
+    return [{ text: rawText, pageNumber: null }];
+  }
+
+  return matches
+    .map((match, index) => {
+      const start = (match.index || 0) + match[0].length;
+      const end = matches[index + 1]?.index ?? rawText.length;
+      const text = rawText.slice(start, end).trim();
+      const pageNumber = Number(match[1]);
+
+      return { text, pageNumber: Number.isFinite(pageNumber) ? pageNumber : index + 1 };
+    })
+    .filter((page) => page.text.length > 0);
 }
 
 function splitPdfPages(rawText: string) {

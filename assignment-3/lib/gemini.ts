@@ -18,6 +18,12 @@ const generationModel = genAI.getGenerativeModel({
     "You are a document QA assistant. Answer only from the supplied context. If the context does not contain the answer, say: \"I could not find that in the uploaded document.\" Do not use outside knowledge.",
 });
 
+const extractionModel = genAI.getGenerativeModel({
+  model: generationModelName,
+  systemInstruction:
+    "You extract text from user-provided documents. Return only text found in the document. Do not summarize, explain, or add outside information.",
+});
+
 export async function embedText(text: string) {
   const result = await embeddingModel.embedContent(text);
   const values = result.embedding.values;
@@ -38,6 +44,25 @@ export async function* streamGroundedAnswer(question: string, context: string) {
     const text = chunk.text();
     if (text) yield text;
   }
+}
+
+export async function extractPdfTextWithGemini(buffer: Buffer, fileName: string) {
+  const result = await extractionModel.generateContent([
+    {
+      inlineData: {
+        data: buffer.toString("base64"),
+        mimeType: "application/pdf",
+      },
+    },
+    [
+      `Extract all readable text from ${fileName}.`,
+      "Preserve important headings, bullet points, numbers, labels, and specifications.",
+      "If there are pages, prefix each page with this exact marker: [[PAGE 1]], [[PAGE 2]], etc.",
+      "Return only extracted document text.",
+    ].join("\n"),
+  ]);
+
+  return result.response.text().trim();
 }
 
 function buildGroundedPrompt(question: string, context: string) {
