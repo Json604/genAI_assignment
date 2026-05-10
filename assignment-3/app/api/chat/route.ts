@@ -15,14 +15,18 @@ type StreamEvent =
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const documentId = typeof body.documentId === "string" ? body.documentId : "";
+    const documentIds = Array.isArray(body.documentIds)
+      ? body.documentIds.filter((id: unknown): id is string => typeof id === "string")
+      : typeof body.documentId === "string"
+        ? [body.documentId]
+        : [];
     const question = typeof body.question === "string" ? body.question : "";
 
-    if (!documentId) {
-      return NextResponse.json({ error: "Upload a document before asking questions." }, { status: 400 });
+    if (!documentIds.length) {
+      return NextResponse.json({ error: "Select at least one source before asking questions." }, { status: 400 });
     }
 
-    const grounding = await getGrounding(documentId, question);
+    const grounding = await getGrounding(documentIds, question);
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({

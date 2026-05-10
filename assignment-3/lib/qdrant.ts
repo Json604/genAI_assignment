@@ -57,15 +57,21 @@ export async function storeChunks(chunks: SourceChunk[], vectors: number[][]) {
   });
 }
 
-export async function searchChunks(documentId: string, vector: number[], limit = 5) {
+export async function searchChunks(documentIds: string[], vector: number[], limit = 8) {
   await ensureDocumentIdIndex();
+
+  const ids = documentIds.filter(Boolean);
+  if (!ids.length) return [];
 
   const results = await qdrant.search(collectionName, {
     vector,
     limit,
     with_payload: true,
     filter: {
-      must: [{ key: "documentId", match: { value: documentId } }],
+      should: ids.map((documentId) => ({
+        key: "documentId",
+        match: { value: documentId },
+      })),
     },
   });
 
@@ -73,7 +79,7 @@ export async function searchChunks(documentId: string, vector: number[], limit =
     const payload = result.payload || {};
     return {
       id: String(result.id),
-      documentId: String(payload.documentId || documentId),
+      documentId: String(payload.documentId || ""),
       fileName: String(payload.fileName || "document"),
       pageNumber: typeof payload.pageNumber === "number" ? payload.pageNumber : null,
       chunkIndex: typeof payload.chunkIndex === "number" ? payload.chunkIndex : 0,

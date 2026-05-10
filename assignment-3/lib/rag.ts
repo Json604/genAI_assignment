@@ -29,7 +29,7 @@ export async function indexDocument(documentId: string, document: ParsedDocument
 }
 
 export async function answerQuestion(documentId: string, question: string) {
-  const grounding = await getGrounding(documentId, question);
+  const grounding = await getGrounding([documentId], question);
 
   if (!grounding.sources.length) {
     return {
@@ -44,12 +44,12 @@ export async function answerQuestion(documentId: string, question: string) {
   };
 }
 
-export async function getGrounding(documentId: string, question: string) {
+export async function getGrounding(documentIds: string[], question: string) {
   const query = question.trim();
   if (!query) throw new Error("Ask a question about the uploaded document.");
 
   const queryVector = await embedText(query);
-  const chunks = await searchChunks(documentId, queryVector, 5);
+  const chunks = await searchChunks(documentIds, queryVector, 8);
   const usefulChunks = chunks.filter((chunk) => chunk.text.trim().length > 0);
 
   if (!usefulChunks.length) {
@@ -63,7 +63,7 @@ export async function getGrounding(documentId: string, question: string) {
   const context = usefulChunks
     .map((chunk) => {
       const location = chunk.pageNumber ? `page ${chunk.pageNumber}` : `chunk ${chunk.chunkIndex + 1}`;
-      return `[${location}, score ${chunk.score?.toFixed(3) ?? "n/a"}]\n${chunk.text}`;
+      return `[${chunk.fileName}, ${location}, score ${chunk.score?.toFixed(3) ?? "n/a"}]\n${chunk.text}`;
     })
     .join("\n\n---\n\n");
 
