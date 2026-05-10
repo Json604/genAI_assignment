@@ -1,0 +1,36 @@
+{
+  "name": "notebooklm-rag-kartikey",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Assignment 03 - Google NotebookLM-style RAG app with Gemini embeddings, Qdrant retrieval, and grounded answers.",
+  "author": "Kartikey <kartikey060105@gmail.com>",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@qdrant/js-client-rest": "^1.13.0",
+    "lucide-react": "^0.468.0",
+    "next": "14.2.35",
+    "pdf-parse": "^1.1.1",
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18.17"
+  }
+}
