@@ -1,0 +1,27 @@
+{
+  "name": "web-automation-agent",
+  "version": "1.0.0",
+  "description": "Provider-agnostic web automation agent with Playwright, accessibility-tree snapshots, and persistent memory.",
+  "type": "module",
+  "main": "src/cli.js",
+  "scripts": {
+    "start": "node src/cli.js",
+    "hermes": "node src/integrations/hermes/web-automate.js",
+    "chrome:cdp": "bash scripts/chrome-agent-cdp.sh",
+    "chrome:cdp:status": "curl -sf http://127.0.0.1:9222/json/version || echo 'CDP not running — run: npm run chrome:cdp'",
+    "test:browser": "node src/test-browser.js",
+    "curator": "node src/run-curator.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@google/generative-ai": "^0.24.1",
+    "dotenv": "^16.4.5",
+    "openai": "^4.67.0",
+    "playwright": "^1.50.1"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "Kartikey (24BCS10121)",
+  "license": "MIT"
+}
